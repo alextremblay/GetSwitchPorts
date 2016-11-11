@@ -13,7 +13,6 @@ from easysnmp import Session  # external package easysnmp.
 import progressbar  # external package progressbar2
 
 
-
 # specify some common OIDs 
 oids = {
     'sysName': '.1.3.6.1.2.1.1.5.0',
@@ -59,8 +58,7 @@ class SwitchInfo(object):
                   "\n the error message received is {1}".format(ip_address, e.message))
             return None
         else:
-            obj = super(SwitchInfo, cls).__new__(cls, *args, **kwargs)
-            return obj
+            return super(SwitchInfo, cls).__new__(cls, *args, **kwargs)
 
     def __init__(self, ip_address, community_string, filter_type=None, filter_keyword=None):
         """
@@ -82,23 +80,23 @@ class SwitchInfo(object):
         self.swInfo['name'] = self._get_sw_name()
         self.swInfo['make'] = self._get_sw_make()
         self.swInfo['model'] = self._get_sw_model()
-        ifIndexList = self._get_interface_list()
+        if_index_list = self._get_interface_list()
 
         # Start gathering port-specific info for each port
         print("Gathering port data...")
-        progress = progressbar.ProgressBar().start(max_value=len(ifIndexList))
+        progress = progressbar.ProgressBar().start(max_value=len(if_index_list))
         self.portTable = []
 
         # Run through the list of interfaces retrieved from the switch, and get information on each one.
-        for count, ifIndex in enumerate(ifIndexList):
+        for count, ifIndex in enumerate(if_index_list):
             progress.update(count)
             interface = dict()
-            interface['vlan'] = self.getNativeVlan(ifIndex)
-            interface['name'] = self.getIfName(ifIndex)
-            interface['desc'] = self.getIfDescription(ifIndex)
+            interface['vlan'] = self.get_native_vlan(ifIndex)
+            interface['name'] = self.get_IF_name(ifIndex)
+            interface['desc'] = self.get_IF_description(ifIndex)
 
             # Only add an interface to the list if it's an ethernet port
-            if self.getIfType(ifIndex) == 'ethernet':
+            if self.get_IF_type(ifIndex) == 'ethernet':
                 self.portTable.append(interface)
         progress.finish()
 
@@ -108,21 +106,20 @@ class SwitchInfo(object):
             self.portTable = None
             self.result = None
         elif filter_type:
-            self.filterTable(filter_type, filter_keyword)
+            self.filter_table(filter_type, filter_keyword)
         else:
             self.result = self.portTable
 
-
-    def filterTable(self, filter_type, filter_keyword):
+    def filter_table(self, filter_type, filter_keyword):
         """
 
         :param filter_type:
         :param filter_keyword:
         :return:
         """
-        if filter_keyword == None and filter_type == 'desc':
+        if filter_keyword is None and filter_type == 'desc':
             filter_keyword = 'UNUSED'
-        if filter_keyword == None and filter_type == 'vlan':
+        if filter_keyword is None and filter_type == 'vlan':
             filter_keyword = '2'
 
         if self.portTable:
@@ -157,9 +154,9 @@ class SwitchInfo(object):
                 ))
             print("Number of ports listed: " + str(len(self.result)))
 
-    ##########################
-    ##  Internal Functions  ##
-    ##########################
+    ########################
+    #  Internal Functions  #
+    ########################
     def _get_sw_name(self):
         name = self.session.get(oids['sysName']).value
         if name == '':
@@ -179,15 +176,15 @@ class SwitchInfo(object):
     def _get_sw_model(self):
         desc = self.session.get(oids['sysDescr'])
         if self.swInfo['make'] == 'cisco':
-            modelMatch = re.search(r'Cisco IOS Software, (IOS-XE Software, )*(Catalyst )*([\S]+)\b', desc.value)
-            if modelMatch:
-                return modelMatch.group(3)
+            model_match = re.search(r'Cisco IOS Software, (IOS-XE Software, )*(Catalyst )*([\S]+)\b', desc.value)
+            if model_match:
+                return model_match.group(3)
             else:
                 return 'unknown model'
         elif self.swInfo['make'] == 'nortel':
-            modelMatch = re.search(r'Ethernet (Routing )*Switch ([\S]+)\b', desc.value)
-            if modelMatch:
-                return modelMatch.group(2)
+            model_match = re.search(r'Ethernet (Routing )*Switch ([\S]+)\b', desc.value)
+            if model_match:
+                return model_match.group(2)
             else:
                 return 'unknown model'
         else:
@@ -200,7 +197,7 @@ class SwitchInfo(object):
             index_list.append(int(snmp_obj.value))
         return index_list
 
-    def getNativeVlan(self, index):
+    def get_native_vlan(self, index):
         make = self.swInfo['make']
         if make == 'cisco' or make == 'nortel':
             vlan_snmp_obj = self.session.get((oids[make]['nativeVlan'], index))
@@ -209,11 +206,11 @@ class SwitchInfo(object):
             print('Native vlan detection not supported for this switch')
             return None
 
-    def getIfName(self, index):
+    def get_IF_name(self, index):
         name_snmp_obj = self.session.get((oids['ifName'], index))
         return name_snmp_obj.value
 
-    def getIfType(self, index):
+    def get_IF_type(self, index):
         type_snmp_obj = self.session.get((oids['ifType'], index))
         if type_snmp_obj.value == '6':
             # ifType is reported as a number corresponding to an IANAifType.
@@ -222,7 +219,7 @@ class SwitchInfo(object):
         else:
             return 'unknown ifType: ' + type_snmp_obj.value
 
-    def getIfDescription(self, index):
+    def get_IF_description(self, index):
         alias_snmp_obj = self.session.get((oids['ifAlias'], index))
         return alias_snmp_obj.value
 

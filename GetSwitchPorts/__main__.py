@@ -1,5 +1,7 @@
+from .GetSwitchPorts import SwitchInfo
 # The code below will only run if this file is read as a script. (Ex. python GetSwitchPorts.py)
 # If this file is instead being loaded as a module into another script, the following code will be ignored
+
 
 def main(args, community_string):
     """
