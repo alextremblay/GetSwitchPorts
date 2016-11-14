@@ -1,10 +1,4 @@
-from .GetSwitchPorts import SwitchInfo
-# The code below will only run if this file is read as a script. (Ex. python GetSwitchPorts.py)
-# If this file is instead being loaded as a module into another script, the following code will be ignored
-
-
-def main(args, community_string):
-    """
+"""
     GetSwitchPorts
     USAGE: python GetSwitchPorts.py [OPTIONS] IP_ADDRESS SNMP_COMMUNITY_STRING [SEARCH_TYPE] [SEARCH_WORD]
 
@@ -30,13 +24,16 @@ def main(args, community_string):
         port.
     """
 
-    switch = SwitchInfo(args.IP_ADDRESS, community_string, args.SEARCH_TYPE, args.SEARCH_WORD)
-    switch.printInfo()
+import argparse
+from getpass import getpass
+from sys import argv
 
-if __name__ == '__main__':
-    import argparse
-    from getpass import getpass  # Secure password prompt module (internal)
-    from sys import argv
+from .GetSwitchPorts import SwitchInfo
+# The code below will only run if this file is read as a script. (Ex. python GetSwitchPorts.py)
+# If this file is instead being loaded as a module into another script, the following code will be ignored
+
+
+def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('IP_ADDRESS')
     parser.add_argument('SEARCH_TYPE', nargs='?', choices=['desc', 'vlan'])
@@ -44,8 +41,12 @@ if __name__ == '__main__':
 
     # Print help if no arguments given, otherwise run the script
     if len(argv) < 2 or argv[1] == '-h' or argv[1] == '--help':
-        print(main.__doc__)
+        print(__doc__)
     else:
         args = parser.parse_args()
         community_string = getpass('SNMP Community String:')
-        main(args, community_string)
+        switch = SwitchInfo(args.IP_ADDRESS, community_string, args.SEARCH_TYPE, args.SEARCH_WORD)
+        switch.printInfo()
+
+if __name__ == '__main__':
+    main()

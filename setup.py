@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name = 'GetSwitchPorts',
-    version = '1.0',
+    version = '1.0.1',
     description='A python command line tool for retrieving switch & port info from Cisco & Nortel switches',
     long_description='''This is a command line tool written in python to retrieve switch and port information from a
     Cisco or Nortel network switch. (limited support for 3Com switches as well). This tool uses SNMP to gather
