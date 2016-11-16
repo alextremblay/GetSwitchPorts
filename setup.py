@@ -41,7 +41,7 @@ setup(
         'Programming Language :: Python :: 3.4',
     ],
     packages = ['GetSwitchPorts'],
-    install_requires=['easysnmp', 'prograssbar2'],
+    install_requires=['easysnmp', 'progressbar2'],
     entry_points = {
         'console_scripts': [
             'getswitchports = GetSwitchPorts.__main__:main'
