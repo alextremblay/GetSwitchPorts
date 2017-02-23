@@ -3,3 +3,4 @@ test.py
 *.pyc
 activate*.sh
 venv*/
+.cache
