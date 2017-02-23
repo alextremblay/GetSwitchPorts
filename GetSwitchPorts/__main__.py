@@ -29,6 +29,7 @@ from getpass import getpass
 from sys import argv
 
 from .GetSwitchPorts import SwitchInfo
+from phpipam_scraper import IPAM
 # The code below will only run if this file is read as a script. (Ex. python GetSwitchPorts.py)
 # If this file is instead being loaded as a module into another script, the following code will be ignored
 
@@ -45,8 +46,22 @@ def main():
     else:
         args = parser.parse_args()
         community_string = getpass('SNMP Community String:')
-        switch = SwitchInfo(args.IP_ADDRESS, community_string, args.SEARCH_TYPE, args.SEARCH_WORD)
-        switch.printInfo()
+        if args.IP_ADDRESS.startswith('ipam:'):
+            ipam = IPAM()
+            keyword = args.IP_ADDRESS.lstrip('ipam:')
+            results = ipam.get_all(keyword)
+            ip_list = []
+            for device in results:
+                ip_list.append(device['IP Address'])
+        else:
+            ip_list = [args.IP_ADDRESS]
+        switch_list = []
+        for ip in ip_list:
+            switch_list.append(SwitchInfo(ip, community_string, args.SEARCH_TYPE, args.SEARCH_WORD))
+        for switch in switch_list:
+            if switch:
+                print('-----------------------------------------------------------------------------------------------')
+                switch.printInfo()
 
 if __name__ == '__main__':
     main()
