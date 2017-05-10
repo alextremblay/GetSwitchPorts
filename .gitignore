@@ -4,3 +4,8 @@ test.py
 activate*.sh
 venv*/
 .cache
+.DS_Store
+.idea/
+GetSwitchPorts/__pycache__/
+tests/__pycache__/
+tests/cisco-chassis.snmprec

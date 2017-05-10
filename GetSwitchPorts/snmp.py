@@ -21,7 +21,7 @@ def snmptable(community, ipaddress, oid, sortkey=None):
     # We want our delimiter to be something that would never show up in the
     # wild, so we'll use the non-printable ascii character RS (Record Separator)
     delimiter='\x1E'
-    cmd = 'snmptable -v 2c -Cf {0} -c {1} {2} {3}'.format(
+    cmd = 'snmptable -v 2c -Cif {0} -c {1} {2} {3}'.format(
           delimiter, community, ipaddress, oid)
     cmdoutput = shell.shell(cmd).output()
 

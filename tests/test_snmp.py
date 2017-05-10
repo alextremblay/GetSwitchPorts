@@ -4,5 +4,11 @@ from GetSwitchPorts import snmp
 
 def test_snmptable():
     tempvar = snmp.snmptable('recorded/cisco-chassis', '127.0.0.1:10000',
-                   '.1.3.6.1.2.1.31.1.1')
+                             'IF-MIB::ifTable', 'ifIndex')
+    tempvar2 =  snmp.snmptable('recorded/cisco-chassis', '127.0.0.1:10000',
+                               'IF-MIB::ifXTable', 'index')
+    print tempvar[10]['index']
+    print tempvar2[10]['index']
     print tempvar[0]
+    print tempvar2[0]
+

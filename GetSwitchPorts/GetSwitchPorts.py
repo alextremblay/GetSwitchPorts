@@ -3,11 +3,13 @@
 TODO: Module Docs
 """
 
+from .snmp import snmptable
+
 import re  # RegEx module (internal)
 from sys import path  # System Utilities module (internal)
 from os import path as os_path  # Operating System module (internal)
 
-from easysnmp import Session  # external package easysnmp.
+#from easysnmp import Session  # external package easysnmp.
 import progressbar  # external package progressbar2
 
 # specify some common OIDs
@@ -108,28 +110,32 @@ class SwitchInfo(object):
         self.swInfo['name'] = self._get_sw_name()
         self.swInfo['make'] = self._get_sw_make()
         self.swInfo['model'] = self._get_sw_model()
-        if_index_list = self._get_interface_list()
+
+        raw_if_table = snmptable(community_string, ip_address,
+                                 'IF-MIB::ifTable')
+
+        # if_index_list = self._get_interface_list()
 
         # Start gathering port-specific info for each port
-        if verbosity > 0:
-            print("Gathering port data...")
-            progress = progressbar.ProgressBar().start(
-                max_value=len(if_index_list))
-        self.portTable = []
+       # if verbosity > 0:
+            # print("Gathering port data...")
+            # progress = progressbar.ProgressBar().start(
+                # max_value=len(if_index_list))
+        # self.portTable = []
 
         # Run through the list of interfaces retrieved from the switch, and get
         # information on each one.
-        for count, ifIndex in enumerate(if_index_list):
-            if verbosity > 0: progress.update(count)
-            interface = dict()
-            interface['vlan'] = self.get_native_vlan(ifIndex)
-            interface['name'] = self.get_IF_name(ifIndex)
-            interface['desc'] = self.get_IF_description(ifIndex)
+        # for count, ifIndex in enumerate(if_index_list):
+        #     if verbosity > 0: progress.update(count)
+        #     interface = dict()
+        #     interface['vlan'] = self.get_native_vlan(ifIndex)
+        #     interface['name'] = self.get_IF_name(ifIndex)
+        #     interface['desc'] = self.get_IF_description(ifIndex)
 
-            # Only add an interface to the list if it's an ethernet port
-            if self.get_IF_type(ifIndex) == 'ethernet':
-                self.portTable.append(interface)
-        if verbosity > 0: progress.finish()
+        #     # Only add an interface to the list if it's an ethernet port
+        #     if self.get_IF_type(ifIndex) == 'ethernet':
+        #         self.portTable.append(interface)
+        # if verbosity > 0: progress.finish()
 
         # Once the loop is done, check to see if it found anything.
         # If so, return the list of found items. if not, return none
@@ -256,7 +262,7 @@ class SwitchInfo(object):
 
 # Order of operations:
 #     - get ip address to check
-#     - check if ip is Nortel or Cisco device
+
 #     - get number of SNMP interfaces
 #     - get interface type of all interfaces
 #     - filter down to list of interfaces whose type matches "ethernetCsmacd"
