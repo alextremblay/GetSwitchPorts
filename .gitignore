@@ -6,6 +6,5 @@ venv*/
 .cache
 .DS_Store
 .idea/
-GetSwitchPorts/__pycache__/
-tests/__pycache__/
-tests/cisco-chassis.snmprec
+*__pycache__/
+tests/*.snmprec

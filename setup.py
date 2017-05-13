@@ -41,7 +41,7 @@ setup(
         'Programming Language :: Python :: 3.4',
     ],
     packages = ['GetSwitchPorts'],
-    install_requires=['easysnmp', 'progressbar2', 'phpIPAM-Scraper'],
+    install_requires=['progressbar2', 'phpIPAM-Scraper'],
     entry_points = {
         'console_scripts': [
             'getswitchports = GetSwitchPorts.__main__:main'
