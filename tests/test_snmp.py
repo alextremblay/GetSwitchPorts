@@ -19,8 +19,8 @@ def execute_before_any_test():
 def test_snmptable_return_structure():
     '''snmptable return data should be a list of dicts containing info about 
     each row in the table'''
-    iftable = snmp.snmptable('cisco-switch', SNMP_SRV_ADDR, SNMP_SRV_PORT,
-                             IFTABLE_OID, 'ifIndex')
+    iftable = snmp.snmptable('cisco-switch', SNMP_SRV_ADDR, IFTABLE_OID,
+                             SNMP_SRV_PORT, sortkey='ifIndex')
     assert type(iftable) is list
     assert type(iftable[0]) is dict
     assert type(iftable[0]['ifDescr']) is str
@@ -29,26 +29,26 @@ def test_snmptable_return_structure():
 
 def test_snmptable_wrong_oid():
     with pytest.raises(ChildProcessError):
-        snmp.snmptable('cisco-chassis', SNMP_SRV_ADDR, SNMP_SRV_PORT,
-                       'WRONG-MIB::Bogus-Table')
+        snmp.snmptable('cisco-chassis', SNMP_SRV_ADDR,'WRONG-MIB::Bogus-Table',
+                       SNMP_SRV_PORT)
 
 
 def test_snmptable_not_table():
     with pytest.raises(snmp.SNMPError) as excinfo:
-        snmp.snmptable('cisco-chassis', SNMP_SRV_ADDR, SNMP_SRV_PORT,
-                       'IF-MIB::ifEntry')
+        snmp.snmptable('cisco-chassis', SNMP_SRV_ADDR, 'IF-MIB::ifEntry',
+                       SNMP_SRV_PORT)
     assert 'could not identify IF-MIB::ifEntry as a table' in str(excinfo.value)
 
 
 def test_snmptable_invalid_address():
     with pytest.raises(ValueError) as excinfo:
         snmp.snmptable('cisco-chassis', 'totally not an ip address',
-                       SNMP_SRV_PORT, 'some-irelevant-oid')
+                       'some-irelevant-oid')
     assert 'does not appear to be an IPv4 or IPv6 address' in str(excinfo.value)
 
 
 def test_snmptable_timeout():
     with pytest.raises(snmp.SNMPError) as excinfo:
-        snmp.snmptable('cisco-chassis', '10.0.0.1', SNMP_SRV_PORT,
+        snmp.snmptable('cisco-chassis', '10.0.0.1',
                        'IF-MIB::ifTable', timeout=1)
     assert 'Timeout' in str(excinfo.value)

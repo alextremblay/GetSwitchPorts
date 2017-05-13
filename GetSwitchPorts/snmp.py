@@ -11,7 +11,7 @@ from subprocess import run, PIPE
 
 # Run a test on import to ensure the net-snmp binaries are installed.
 try:
-    run('snmpget', stdout=PIPE)
+    run('snmpget')
 except FileNotFoundError:
     raise ImportError(
         'Net-SNMP does not appear to be installed on this system, '
