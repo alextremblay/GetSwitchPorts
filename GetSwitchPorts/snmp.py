@@ -10,6 +10,10 @@ from ipaddress import ip_address
 from socket import getaddrinfo, gaierror
 from subprocess import run, PIPE
 
+# imports for type-hinting purposes
+from typing import Union, Optional, List, Tuple, Dict
+from subprocess import CompletedProcess
+
 # Run a test on import to ensure the net-snmp binaries are installed.
 try:
     run('snmpget')
@@ -21,21 +25,23 @@ except FileNotFoundError:
 
 
 class SNMPError(Exception):
-    '''We'll use this error class anytime we receive a known, expected error 
-    from an underlying net-snmp command we run'''
+    """
+    We'll use this error class anytime we receive a known, expected error 
+    from an underlying net-snmp command we run
+    """
     pass
 
 
 # Should handle the following cases: invalid community string, snmp timeout
 
 
-def validate_ip_address(ipaddress):
-    '''
-        convert the IP Address string into an IPv4Address or IPv6Address
-        then back into a string. This is a cheap and easy way to do IP
-        address validation. If the string is not a valid address,
-        a ValueError will be raised
-    '''
+def validate_ip_address(ipaddress: str) -> str:
+    """
+    convert the IP Address string into an IPv4Address or IPv6Address
+    then back into a string. This is a cheap and easy way to do IP
+    address validation. If the string is not a valid address,
+    a ValueError will be raised
+    """
     try:
         ipaddr = getaddrinfo(ipaddress, None)[0][4][0]
         ipaddr = ip_address(ipaddr)
@@ -45,7 +51,15 @@ def validate_ip_address(ipaddress):
                         "hostname / IP address".format(ipaddress))
 
 
-def check_for_timeout(cmd, ipaddress, port):
+def check_for_timeout(cmd: CompletedProcess, ipaddress: str, port: str) -> None:
+    """
+    look for a timeout condition in the completed command's output and raise 
+    an error if needed
+    :param cmd: 
+    :param ipaddress: 
+    :param port: 
+    :return: 
+    """
     if b'No Response from' in cmd.stderr:
         raise SNMPError(
             "Timeout: no response received from {0}:{1}".format(
@@ -53,7 +67,14 @@ def check_for_timeout(cmd, ipaddress, port):
         )
 
 
-def check_for_unknown_host(cmd, ipaddress):
+def check_for_unknown_host(cmd: CompletedProcess, ipaddress: str) -> None:
+    """
+    look for an unknown host condition in the completed command's output and 
+    raise an error if needed
+    :param cmd: 
+    :param ipaddress: 
+    :return:  
+    """
     if b'Unknown host' in cmd.stderr:
         raise SNMPError(
             "Unknown host: the SNMP command could not identify {0} as a valid "
@@ -61,17 +82,32 @@ def check_for_unknown_host(cmd, ipaddress):
         )
 
 
-def handle_unknown_error(cmdstr, cmd):
+def handle_unknown_error(cmdstr: str, cmd: CompletedProcess) -> None:
+    """
+    Catch-all for any unhandled error message. Raises an Error showing the 
+    snmp command attempted, and the error message received.
+    :param cmdstr: 
+    :param cmd: 
+    :return: 
+    """
     raise ChildProcessError(
         "The SNMP command failed. \nAttempted Command: {0}\n Error received: "
         "{1}".format(cmdstr, str(cmd.stderr))
     )
 
 
-def snmpget(community, ipaddress, oid, port=161, timeout=3):
-    '''
+def snmpget(community: str, ipaddress: str, oid: str,
+            port: Union[str, int] = 161, timeout: int = 3) -> Optional[str]:
+    """
     Runs Net-SNMP's 'snmpget' command on a given OID, and returns the result.
-    '''
+    :param community: the snmpv2 community string
+    :param ipaddress: the IP address of the target SNMP server
+    :param oid: the Object IDentifier to request from the target SNMP server
+    :param port: the port on which SNMP is running on the target server
+    :param timeout: the number of seconds to wait for a response from the 
+    SNMP server  
+    :return: 
+    """
     ipaddress = validate_ip_address(ipaddress)
 
     cmdstr = "snmpget -Oqv -Pe -t {0} -r 0 -v 2c -c {1} {2}:{3} {4}"\
@@ -99,11 +135,21 @@ def snmpget(community, ipaddress, oid, port=161, timeout=3):
             return cmdoutput
 
 
-def snmpgetbulk(community, ipaddress, oids, port=161, timeout=3):
-    '''
+def snmpgetbulk(community: str, ipaddress: str, oids: List[str],
+                port: Union[str, int] = 161, timeout: int = 3) \
+                    -> List[Tuple[str, str]]:
+    """
     Runs Net-SNMP's 'snmpget' command on a list of OIDs, and returns a list 
     of tuples of the form (oid, result).
-    '''
+    :param community: the snmpv2 community string
+    :param ipaddress: the IP address of the target SNMP server
+    :param oids: a list of Object IDentifiers to request from the target 
+    SNMP server
+    :param port: the port on which SNMP is running on the target server
+    :param timeout: the number of seconds to wait for a response from the 
+    SNMP server 
+    :return: 
+    """
     ipaddress = validate_ip_address(ipaddress)
 
     if type(oids) is not list:
@@ -139,11 +185,20 @@ def snmpgetbulk(community, ipaddress, oids, port=161, timeout=3):
         return result
 
 
-def snmpwalk(community, ipaddress, oid, port=161, timeout=3):
-    '''
+def snmpwalk(community: str, ipaddress: str, oid: str,
+             port: Union[str, int] = 161, timeout: int = 3) \
+                -> List[Tuple[str, str]]:
+    """
     Runs Net-SNMP's 'snmpget' command on a list of OIDs, and returns a list 
     of tuples of the form (oid, result).
-    '''
+    :param community: the snmpv2 community string
+    :param ipaddress: the IP address of the target SNMP server
+    :param oid: the Object IDentifier to request from the target SNMP server
+    :param port: the port on which SNMP is running on the target server
+    :param timeout: the number of seconds to wait for a response from the 
+    SNMP server 
+    :return: 
+    """
     ipaddress = validate_ip_address(ipaddress)
 
     cmdstr = "snmpwalk -OQfn -Pe -t {0} -r 0 -v 2c -c {1} {2}:{3} {4}" \
@@ -176,21 +231,33 @@ def snmpwalk(community, ipaddress, oid, port=161, timeout=3):
         return result
 
 
-def snmptable(community, ipaddress, oid, port=161, sortkey=None, timeout=3):
-    '''
+def snmptable(community: str, ipaddress: str, oid: str,
+              port: Union[str, int] = 161, sortkey: Optional[str] = None,
+              timeout: int = 3) -> List[Dict[str, str]]:
+    """
     Runs Net-SNMP's 'snmptable' command on a given OID, converts the results
     into a list of dictionaries, and optionally sorts the list by a given key.
-    '''
+    :param community: the snmpv2 community string
+    :param ipaddress: the IP address of the target SNMP server
+    :param oid: the Object IDentifier to request from the target SNMP server
+    :param port: the port on which SNMP is running on the target server
+    :param sortkey: the key within each dict upon which to sort the list of 
+    results
+    :param timeout: the number of seconds to wait for a response from the 
+    SNMP server
+    :return: a list of dicts, one for each row of the table. The keys of the 
+    dicts correspond to the column names of the table.
+    """
 
     # We want our delimiter to be something that would never show up in the
     # wild, so we'll use the non-printable ascii character RS (Record Separator)
-    DELIMITER = '\x1E'
+    delimiter = '\x1E'
 
     ipaddress = validate_ip_address(ipaddress)
 
     cmdstr = 'snmptable -m ALL -Pe -t {5} -r 0 -v 2c -Cif {0} -c {1} {2}:{3} ' \
              '{4}' \
-        .format(DELIMITER, community, ipaddress, port, oid, timeout)
+        .format(delimiter, community, ipaddress, port, oid, timeout)
 
     cmd = run(cmdstr, shell=True, stdout=PIPE, stderr=PIPE)
 
@@ -216,7 +283,7 @@ def snmptable(community, ipaddress, oid, port=161, sortkey=None, timeout=3):
         # Strip the table name and the blank line following it from the output,
         # so all that remains is the table itself
         cmdoutput = cmdoutput[2:]
-        table_parser = csv.DictReader(cmdoutput, delimiter=DELIMITER)
+        table_parser = csv.DictReader(cmdoutput, delimiter=delimiter)
         results = [element for element in table_parser]
         if sortkey:
             results.sort(key=lambda i: i[sortkey])

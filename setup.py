@@ -42,6 +42,9 @@ setup(
     ],
     packages = ['GetSwitchPorts'],
     install_requires=['progressbar2', 'phpIPAM-Scraper'],
+    extras_require={
+        'test': ['pytest']
+    },
     entry_points = {
         'console_scripts': [
             'getswitchports = GetSwitchPorts.__main__:main'
