@@ -4,9 +4,10 @@ the net-snmp binaries on the host system. This module will provide a function
 for each net-snmp binary used, run that binary with custom options, parse its
 output, and deliver it back in a meaningful form. 
 """
-# Internal module imports
+# Standard Library imports
 import csv
 from ipaddress import ip_address
+from socket import getaddrinfo, gaierror
 from subprocess import run, PIPE
 
 # Run a test on import to ensure the net-snmp binaries are installed.
@@ -35,7 +36,14 @@ def validate_ip_address(ipaddress):
         address validation. If the string is not a valid address,
         a ValueError will be raised
     '''
-    return str(ip_address((ipaddress)))
+    try:
+        ipaddr = getaddrinfo(ipaddress, None)[0][4][0]
+        ipaddr = ip_address(ipaddr)
+        return ipaddr
+    except (gaierror, ValueError):
+        raise SNMPError("Invalid Address: {0} does not appear to be a valid "
+                        "hostname / IP address".format(ipaddress))
+
 
 def check_for_timeout(cmd, ipaddress, port):
     if b'No Response from' in cmd.stderr:
@@ -45,11 +53,127 @@ def check_for_timeout(cmd, ipaddress, port):
         )
 
 
+def check_for_unknown_host(cmd, ipaddress):
+    if b'Unknown host' in cmd.stderr:
+        raise SNMPError(
+            "Unknown host: the SNMP command could not identify {0} as a valid "
+            "host.".format(ipaddress)
+        )
+
+
 def handle_unknown_error(cmdstr, cmd):
     raise ChildProcessError(
         "The SNMP command failed. \nAttempted Command: {0}\n Error received: "
         "{1}".format(cmdstr, str(cmd.stderr))
     )
+
+
+def snmpget(community, ipaddress, oid, port=161, timeout=3):
+    '''
+    Runs Net-SNMP's 'snmpget' command on a given OID, and returns the result.
+    '''
+    ipaddress = validate_ip_address(ipaddress)
+
+    cmdstr = "snmpget -Oqv -Pe -t {0} -r 0 -v 2c -c {1} {2}:{3} {4}"\
+        .format(timeout, community, ipaddress, port, oid)
+
+    cmd = run(cmdstr, shell=True, stdout=PIPE, stderr=PIPE)
+
+    # Handle any errors that came up
+    if cmd.returncode is not 0:
+        check_for_timeout(cmd, ipaddress, port)
+
+        # if previous check didn't generate an Error, this handler will be
+        # called as a sort of catch-all
+        handle_unknown_error(cmdstr, cmd)
+    # Process results
+    else:
+        # subprocess returns stdout from completed command as a single bytes
+        # string. We'll convert it into a regular python string for easier
+        # handling
+        cmdoutput = cmd.stdout.decode('utf-8')
+        # Check for no such instance
+        if 'No Such Instance' in cmdoutput:
+            return None
+        else:
+            return cmdoutput
+
+
+def snmpgetbulk(community, ipaddress, oids, port=161, timeout=3):
+    '''
+    Runs Net-SNMP's 'snmpget' command on a list of OIDs, and returns a list 
+    of tuples of the form (oid, result).
+    '''
+    ipaddress = validate_ip_address(ipaddress)
+
+    if type(oids) is not list:
+        oids = [oids]
+
+    cmdstr = "snmpget -OQfn -Pe -t {0} -r 0 -v 2c -c {1} {2}:{3} {4}" \
+        .format(timeout, community, ipaddress, port, ' '.join(oids))
+
+    cmd = run(cmdstr, shell=True, stdout=PIPE, stderr=PIPE)
+
+    # Handle any errors that came up
+    if cmd.returncode is not 0:
+        check_for_timeout(cmd, ipaddress, port)
+
+        # if previous check didn't generate an Error, this handler will be
+        # called as a sort of catch-all
+        handle_unknown_error(cmdstr, cmd)
+    # Process results
+    else:
+        cmdoutput = cmd.stdout.splitlines()
+        result = []
+        for line in cmdoutput:
+            # subprocess returns stdout from completed command as a bytes
+            # string. We'll convert each line into a regular python string,
+            # and separate the OID portion from the result portion
+            item = line.decode('utf-8').split(' = ', 1)
+            # Check for no such instance
+            if 'No Such Instance' in item[1]:
+                item[1] = None
+
+            result.append(tuple(item))
+
+        return result
+
+
+def snmpwalk(community, ipaddress, oid, port=161, timeout=3):
+    '''
+    Runs Net-SNMP's 'snmpget' command on a list of OIDs, and returns a list 
+    of tuples of the form (oid, result).
+    '''
+    ipaddress = validate_ip_address(ipaddress)
+
+    cmdstr = "snmpwalk -OQfn -Pe -t {0} -r 0 -v 2c -c {1} {2}:{3} {4}" \
+        .format(timeout, community, ipaddress, port, oid)
+
+    cmd = run(cmdstr, shell=True, stdout=PIPE, stderr=PIPE)
+
+    # Handle any errors that came up
+    if cmd.returncode is not 0:
+        check_for_timeout(cmd, ipaddress, port)
+
+        # if previous check didn't generate an Error, this handler will be
+        # called as a sort of catch-all
+        handle_unknown_error(cmdstr, cmd)
+    # Process results
+    else:
+        cmdoutput = cmd.stdout.splitlines()
+        result = []
+        for line in cmdoutput:
+            # subprocess returns stdout from completed command as a bytes
+            # string. We'll convert each line into a regular python string,
+            # and separate the OID portion from the result portion
+            item = line.decode('utf-8').split(' = ', 1)
+            # Check for no such instance
+            if 'No Such Instance' in item[1]:
+                item[1] = None
+
+            result.append(tuple(item))
+
+        return result
 
 
 def snmptable(community, ipaddress, oid, port=161, sortkey=None, timeout=3):
@@ -64,7 +188,8 @@ def snmptable(community, ipaddress, oid, port=161, sortkey=None, timeout=3):
 
     ipaddress = validate_ip_address(ipaddress)
 
-    cmdstr = 'snmptable -m ALL -t {5} -r 0 -v 2c -Cif {0} -c {1} {2}:{3} {4}' \
+    cmdstr = 'snmptable -m ALL -Pe -t {5} -r 0 -v 2c -Cif {0} -c {1} {2}:{3} ' \
+             '{4}' \
         .format(DELIMITER, community, ipaddress, port, oid, timeout)
 
     cmd = run(cmdstr, shell=True, stdout=PIPE, stderr=PIPE)
