@@ -3,13 +3,17 @@
 TODO: Module Docs
 """
 
-from .snmp import snmptable
+# Internal module imports
+from .snmp import snmpget, snmpgetbulk, snmptable
+from .snmp import validate_ip_address, run, PIPE, SNMPError
 
-import re  # RegEx module (internal)
-from sys import path  # System Utilities module (internal)
-from os import path as os_path  # Operating System module (internal)
+# Standard Library imports
+import re  # RegEx module
 
-#from easysnmp import Session  # external package easysnmp.
+# imports for type-hinting purposes
+from typing import Union, Optional, Any,Type, List, Tuple, Dict
+
+# External Package imports
 import progressbar  # external package progressbar2
 
 # specify some common OIDs
@@ -43,13 +47,13 @@ oids = {
 
 class SwitchInfo(object):
     def __new__(cls,
-                ip_address,
-                community_string,
-                filter_type=None,
-                filter_keyword=None,
-                verbosity=1,
-                *args,
-                **kwargs):
+                ip_address: str,
+                port: Optional[int] = 161,
+                community_string: Optional[str] = 'public',
+                filter_type: Optional[str]=None,
+                filter_keyword: Optional[str]=None,
+                verbosity: Optional[int]=1,
+                timeout: Optional[int]=3) -> Optional[object]:
         """
 
         This method runs during class instantiation, before an instance of the
@@ -61,29 +65,41 @@ class SwitchInfo(object):
 
         :param ip_address: see SwitchInfo.__init__
         :param community_string: see SwitchInfo.__init__
-        :param args: pass through positional arguments
-        :param kwargs: pass through keywords
+        :param more: pass through positional arguments
         :return: an instance of this class, if the test succeeds. None otherwise
         """
+        # Before creating a SwitchInfo instance for a given switch,
+        # we should check to see if the target is valid
         try:
-            Session(
-                hostname=ip_address, community=community_string,
-                version=2).get(oids['sysDescr'])
-        except Exception as e:
-            print(
-                "Error: unable to connect to {0}, This switch appears to be "
-                "unavailable. \n the error message received is {1}"
-                    .format(ip_address, e.message))
+            ip_address = validate_ip_address(ip_address)
+        except SNMPError as error:
+            print(error)
             return None
-        else:
-            return super(SwitchInfo, cls).__new__(cls, *args, **kwargs)
+        # Now we know the hostname / address is ok, let's try to connect and
+        # verify that the device is online and our community string is valid.
+        # For this test, we'll request an OID that should exist on just about
+        # every SNMP server out there: sysDescr
+        connection_test = run(
+            ['snmpget', '-v', '2c', '-t', timeout, '-c', community_string,
+             '{0}:{1}'.format(ip_address, port), oids['sysDescr']], stderr=PIPE)
+        if connection_test.returncode is not 0:
+            print("Unable to communicate with {0}:{1} over SNMP \n\
+                  The error message we got was: {2}".format(
+                ip_address, port, connection_test.stderr))
+            return None
+        # else:
+        # If we get to this point, then all should be well. We will resume
+        # instantiating our class.
+        return super(SwitchInfo, cls).__new__(cls)
 
     def __init__(self,
-                 ip_address,
-                 community_string,
-                 filter_type=None,
-                 filter_keyword=None,
-                 verbosity=1):
+                 ip_address: str,
+                 port: Optional[int] = 161,
+                 community_string: Optional[str] = 'public',
+                 filter_type: Optional[str] = None,
+                 filter_keyword: Optional[str] = None,
+                 verbosity: Optional[int] = 1,
+                 timeout: Optional[int] = 3):
         """
 
             This method will connect to a switch over SNMP and search the
@@ -101,41 +117,42 @@ class SwitchInfo(object):
                 descriptions. defaults to "UNUSED" for
                 port description, "2" for vlan
         """
-        self.session = Session(
-            hostname=ip_address, community=community_string, version=2)
 
         # Start gathering switch-specific info
         self.swInfo = dict()
         self.swInfo['IP'] = ip_address
-        self.swInfo['name'] = self._get_sw_name()
-        self.swInfo['make'] = self._get_sw_make()
-        self.swInfo['model'] = self._get_sw_model()
+        switch_OIDs = [oids['sysName'], oids['sysDescr']]
+        name, desc = snmpgetbulk(community_string, ip_address, switch_OIDs,
+                                 port, timeout)
+        self.swInfo['name'] = self._get_sw_name(name)
+        self.swInfo['make'] = self._get_sw_make(desc)
+        self.swInfo['model'] = self._get_sw_model(desc)
 
         raw_if_table = snmptable(community_string, ip_address,
                                  'IF-MIB::ifTable')
 
-        # if_index_list = self._get_interface_list()
+        if_index_list = self._get_interface_list()
 
         # Start gathering port-specific info for each port
-       # if verbosity > 0:
-            # print("Gathering port data...")
-            # progress = progressbar.ProgressBar().start(
-                # max_value=len(if_index_list))
-        # self.portTable = []
+        if verbosity > 0:
+            print("Gathering port data...")
+            progress = progressbar.ProgressBar().start(
+                max_value=len(if_index_list))
+        self.portTable = []
 
         # Run through the list of interfaces retrieved from the switch, and get
         # information on each one.
-        # for count, ifIndex in enumerate(if_index_list):
-        #     if verbosity > 0: progress.update(count)
-        #     interface = dict()
-        #     interface['vlan'] = self.get_native_vlan(ifIndex)
-        #     interface['name'] = self.get_IF_name(ifIndex)
-        #     interface['desc'] = self.get_IF_description(ifIndex)
+        for count, ifIndex in enumerate(if_index_list):
+            if verbosity > 0: progress.update(count)
+            interface = dict()
+            interface['vlan'] = self.get_native_vlan(ifIndex)
+            interface['name'] = self.get_IF_name(ifIndex)
+            interface['desc'] = self.get_IF_description(ifIndex)
 
-        #     # Only add an interface to the list if it's an ethernet port
-        #     if self.get_IF_type(ifIndex) == 'ethernet':
-        #         self.portTable.append(interface)
-        # if verbosity > 0: progress.finish()
+            # Only add an interface to the list if it's an ethernet port
+            if self.get_IF_type(ifIndex) == 'ethernet':
+                self.portTable.append(interface)
+        if verbosity > 0: progress.finish()
 
         # Once the loop is done, check to see if it found anything.
         # If so, return the list of found items. if not, return none
@@ -189,41 +206,38 @@ class SwitchInfo(object):
     ########################
     #  Internal Functions  #
     ########################
-    def _get_sw_name(self):
-        name = self.session.get(oids['sysName']).value
+    def _get_sw_name(self, name: str) -> str:
         if name == '':
             return "No name defined"
         else:
             return name
 
-    def _get_sw_make(self):
-        desc = self.session.get(oids['sysDescr']).value
-        if re.search('Cisco', desc):
+    def _get_sw_make(self, desc: str) -> str:
+        if 'Cisco' in desc:
             return 'Cisco'
-        if re.search('Nortel', desc) or re.search('Avaya', desc):
+        if 'Nortel' in desc or 'Avaya' in desc:
             return 'Nortel'
         else:
-            return None
+            return 'Unknown: {}'.format(desc)
 
-    def _get_sw_model(self):
-        desc = self.session.get(oids['sysDescr'])
+    def _get_sw_model(self, desc: str) -> str:
         if self.swInfo['make'] == 'Cisco':
             model_match = re.search(
                 r'Cisco IOS Software, (IOS-XE Software, )'
-                r'*(Catalyst )*([\S]+)\b', desc.value)
+                r'*(Catalyst )*([\S]+)\b', desc)
             if model_match:
                 return model_match.group(3)
             else:
-                return 'unknown model'
+                return 'Unknown model'
         elif self.swInfo['make'] == 'Nortel':
             model_match = re.search(r'Ethernet (Routing )*Switch ([\S]+)\b',
-                                    desc.value)
+                                    desc)
             if model_match:
                 return model_match.group(2)
             else:
-                return 'unknown model'
+                return 'Unknown model'
         else:
-            return None
+            return 'Unknown model'
 
     def _get_interface_list(self):
         snmp_obj_list = self.session.walk(oids['ifIndex'])

@@ -1,3 +1,7 @@
+"""
+For these tests, we will use a local snmpsim instance loaded up with snmprec 
+files for a cisco chassis, a cisco switch, a nortel stack, and a nortel switch
+"""
 import pytest
 
 from GetSwitchPorts import snmp
@@ -5,19 +9,7 @@ from GetSwitchPorts import snmp
 SNMP_SRV_ADDR = '127.0.0.1'
 SNMP_SRV_PORT = '10000'
 IFTABLE_OID = '.1.3.6.1.2.1.2.2'
-IFXTABLE_OID = '.1.3.6.1.2.1.31.1.1'
-
-
-@pytest.fixture(scope="session", autouse=True)
-def execute_before_any_test():
-    """
-    We're using snmpsim to simulate various target devices for our tests. 
-    Before we do anything, we should probably make sure it's actually running
-    """
-    import socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    result = sock.connect_ex((SNMP_SRV_ADDR, int(SNMP_SRV_PORT)))
-    assert result == 0, "SNMP test server does not appear to be running"
+SYSDESCR_OID = '.1.3.6.1.2.1.1.1.0'
 
 snmp_commands = [
     snmp.snmpget,
@@ -25,17 +17,6 @@ snmp_commands = [
     snmp.snmpwalk,
     snmp.snmptable,
 ]
-
-
-def test_snmp_valid_hostname():
-    """
-    make sure snmp commands work when given a valid hostname instead of an IP 
-    address
-    """
-    result = snmp.snmpget('cisco-switch', 'localhost',
-                          '.1.3.6.1.2.1.1.1.0', SNMP_SRV_PORT)
-    assert 'Cisco IOS Software' in result
-    assert type(result) is str
 
 
 def test_snmp_invalid_address():

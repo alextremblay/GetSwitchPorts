@@ -45,7 +45,7 @@ def validate_ip_address(ipaddress: str) -> str:
     try:
         ipaddr = getaddrinfo(ipaddress, None)[0][4][0]
         ipaddr = ip_address(ipaddr)
-        return ipaddr
+        return str(ipaddr)
     except (gaierror, ValueError):
         raise SNMPError("Invalid Address: {0} does not appear to be a valid "
                         "hostname / IP address".format(ipaddress))
