@@ -31,7 +31,7 @@ def test_SwitchInfo_returns_None_when_target_offline(capfd):
     and a message should be printed detailing the problem
     """
     non_existant_host = '127.99.99.99'
-    result = SwitchInfo(non_existant_host)
+    result = SwitchInfo(non_existant_host, timeout=1)
     assert result is None
     capturedoutput = capfd.readouterr()[0]
     assert 'Unable to communicate' in capturedoutput
@@ -45,7 +45,7 @@ def test_SwitchInfo_returns_None_when_community_string_incorrect(capfd):
     return None, and a message should be printed detailing
     """
     result = SwitchInfo(SNMP_SRV_ADDR, SNMP_SRV_PORT,
-                        'bogus_community_string', )
+                        'bogus_community_string', timeout=1)
     assert result is None
     capturedoutput = capfd.readouterr()[0]
     assert 'Unable to communicate' in capturedoutput

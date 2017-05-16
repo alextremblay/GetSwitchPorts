@@ -134,6 +134,27 @@ def test_snmpgetbulk_return_contains_no_such_instance():
     assert result[2][1] is None
 
 
+def test_snmpgetbulk_return_contains_multiline_output():
+    """
+    there is an unfortunate bug / oversight in the net-snmp commands where 
+    newline characters within SNMP variables returned from a server are not 
+    escaped before printing. 
+    If you do an snmpget for 3 oids you'll get 3 lines of output printed :)
+    But if one of those 3 variables contains, say, 2 new-line chars in it, 
+    you'll get 5 lines of output :(
+    our snmpgetbulk function should detect whether a given line of output is 
+    an oid-value pair or a continuation of the value from the last pair and 
+    act accordingly
+    """
+    oids = ['IF-MIB::ifTable.1.1.1', 'SNMPv2-MIB::sysDescr.0',
+            'IF-MIB::ifTable.1.3']
+    result = snmp.snmpgetbulk('cisco-switch', SNMP_SRV_ADDR, oids,
+                              SNMP_SRV_PORT)
+    assert len(result) is 3
+    assert type(result[1]) is tuple
+    assert '\n' in result[1][1]
+
+
 def test_snmpwalk_return_structure():
     """
     The snmpwalk function should give us a list of tuples, one for each OID 
@@ -147,3 +168,21 @@ def test_snmpwalk_return_structure():
     assert type(result[0][0]) is str and type(result[0][1]) is str
     assert result[0][0] == '.1.3.6.1.2.1.2.2.1.1.1'
     assert result[0][1] == '1'
+
+
+def test_snmpwalk_return_contains_multiline_output():
+    """
+    there is an unfortunate bug / oversight in the net-snmp commands where 
+    newline characters within SNMP variables returned from a server are not 
+    escaped before printing. 
+    If you do an snmpget for 3 oids you'll get 3 lines of output printed :)
+    But if one of those 3 variables contains, say, 2 new-line chars in it, 
+    you'll get 5 lines of output :(
+    our snmpwalk function should detect whether a given line of output is 
+    an oid-value pair or a continuation of the value from the last pair and 
+    act accordingly
+    """
+    result = snmp.snmpwalk('cisco-switch', SNMP_SRV_ADDR, 'SNMPv2-MIB::system',
+                              SNMP_SRV_PORT)
+    assert type(result[0]) is tuple
+    assert '\n' in result[0][1]

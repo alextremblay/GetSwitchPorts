@@ -176,11 +176,33 @@ def snmpgetbulk(community: str, ipaddress: str, oids: List[str],
             # string. We'll convert each line into a regular python string,
             # and separate the OID portion from the result portion
             item = line.decode('utf-8').split(' = ', 1)
-            # Check for no such instance
-            if 'No Such Instance' in item[1]:
-                item[1] = None
 
-            result.append(tuple(item))
+            # there is an unfortunate bug / oversight in the net-snmp
+            # commands where newline characters within SNMP variables
+            # returned from a server are not escaped before printing. if you
+            # do an snmpget for 3 oids you'll get 3 lines of output printed (
+            # which is what we want), but if one of those 3 variables
+            # contains, say, 2 new-line chars in it, you'll get 5 lines of
+            # output :(
+            # our quick-n-dirty solution is to check each line to see if it
+            # "looks" like an oid-value pair (meaning it has a " = " in it). if
+            # it doesn't, we'll assume that this line is part of the last pair's
+            # value and tack it on accordingly. When we run the .split()
+            # function above, if the string did not have a " = " to split on,
+            #  the function returns a list with one item: the original string
+            if len(item) > 1:  # This is a normal oid-value pair
+                # Check for no such instance
+                if 'No Such Instance' in item[1]:
+                    item[1] = None
+                # add it to the results
+                result.append(tuple(item))
+            else:  # This line is a continuation of the last oid-value pair
+                # make a copy of the last oid-value pair for us to edit
+                prev_item = list(result[-1])
+                # append the new line to it
+                prev_item[1] += '\n' + item[0]
+                # replace the original with the edited copy
+                result[-1] = tuple(prev_item)
 
         return result
 
@@ -222,18 +244,40 @@ def snmpwalk(community: str, ipaddress: str, oid: str,
             # string. We'll convert each line into a regular python string,
             # and separate the OID portion from the result portion
             item = line.decode('utf-8').split(' = ', 1)
-            # Check for no such instance
-            if 'No Such Instance' in item[1]:
-                item[1] = None
 
-            result.append(tuple(item))
+            # there is an unfortunate bug / oversight in the net-snmp
+            # commands where newline characters within SNMP variables
+            # returned from a server are not escaped before printing. if you
+            # do an snmpget for 3 oids you'll get 3 lines of output printed (
+            # which is what we want), but if one of those 3 variables
+            # contains, say, 2 new-line chars in it, you'll get 5 lines of
+            # output :(
+            # our quick-n-dirty solution is to check each line to see if it
+            # "looks" like an oid-value pair (meaning it has a " = " in it). if
+            # it doesn't, we'll assume that this line is part of the last pair's
+            # value and tack it on accordingly. When we run the .split()
+            # function above, if the string did not have a " = " to split on,
+            #  the function returns a list with one item: the original string
+            if len(item) > 1:  # This is a normal oid-value pair
+                # Check for no such instance
+                if 'No Such Instance' in item[1]:
+                    item[1] = None
+                # add it to the results
+                result.append(tuple(item))
+            else:  # This line is a continuation of the last oid-value pair
+                # make a copy of the last oid-value pair for us to edit
+                prev_item = list(result[-1])
+                # append the new line to it
+                prev_item[1] += '\n' + item[0]
+                # replace the original with the edited copy
+                result[-1] = tuple(prev_item)
 
         return result
 
 
 def snmptable(community: str, ipaddress: str, oid: str,
-              port: Union[str, int] = 161, sortkey: Optional[str] = None,
-              timeout: int = 3) -> List[Dict[str, str]]:
+              port: Union[str, int] = 161, timeout: int = 3,
+              sortkey: Optional[str] = None) -> List[Dict[str, str]]:
     """
     Runs Net-SNMP's 'snmptable' command on a given OID, converts the results
     into a list of dictionaries, and optionally sorts the list by a given key.

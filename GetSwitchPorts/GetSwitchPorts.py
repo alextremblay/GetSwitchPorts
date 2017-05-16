@@ -80,7 +80,7 @@ class SwitchInfo(object):
         # For this test, we'll request an OID that should exist on just about
         # every SNMP server out there: sysDescr
         connection_test = run(
-            ['snmpget', '-v', '2c', '-t', timeout, '-c', community_string,
+            ['snmpget', '-v', '2c', '-t', str(timeout), '-c', community_string,
              '{0}:{1}'.format(ip_address, port), oids['sysDescr']], stderr=PIPE)
         if connection_test.returncode is not 0:
             print("Unable to communicate with {0}:{1} over SNMP \n\
@@ -124,12 +124,12 @@ class SwitchInfo(object):
         switch_OIDs = [oids['sysName'], oids['sysDescr']]
         name, desc = snmpgetbulk(community_string, ip_address, switch_OIDs,
                                  port, timeout)
-        self.swInfo['name'] = self._get_sw_name(name)
-        self.swInfo['make'] = self._get_sw_make(desc)
-        self.swInfo['model'] = self._get_sw_model(desc)
+        self.swInfo['name'] = self._get_sw_name(name[1])
+        self.swInfo['make'] = self._get_sw_make(desc[1])
+        self.swInfo['model'] = self._get_sw_model(desc[1])
 
         raw_if_table = snmptable(community_string, ip_address,
-                                 'IF-MIB::ifTable')
+                                 'IF-MIB::ifTable', port, timeout)
 
         if_index_list = self._get_interface_list()
 
