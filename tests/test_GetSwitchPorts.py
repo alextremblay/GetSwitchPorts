@@ -10,6 +10,7 @@ SNMP_SRV_ADDR = '127.0.0.1'
 SNMP_SRV_PORT = 10000
 
 
+@pytest.mark.slow
 def test_SwitchInfo_returns_None_on_invalid_address(capfd):
     """
     If the target switch's IP address / hostname is invalid, the call to 
@@ -22,9 +23,7 @@ def test_SwitchInfo_returns_None_on_invalid_address(capfd):
     assert 'Invalid Address' in capturedoutput
 
 
-
-
-
+@pytest.mark.slow
 def test_SwitchInfo_returns_None_when_target_offline(capfd):
     """
     If the target switch is offline, the call to SwitchInfo should return None, 
@@ -38,6 +37,7 @@ def test_SwitchInfo_returns_None_when_target_offline(capfd):
     assert str(non_existant_host) in capturedoutput
 
 
+@pytest.mark.slow
 def test_SwitchInfo_returns_None_when_community_string_incorrect(capfd):
     """
     If the target switch's IP address / hostname is invalid, or if the device 
@@ -58,4 +58,5 @@ def test_SwitchInfo_return_structure():
     it, and a porttable list of dicts
     """
     result = SwitchInfo(SNMP_SRV_ADDR, SNMP_SRV_PORT, 'cisco-switch')
-    assert type(result) is list
+    assert hasattr(result, 'swInfo')
+    assert hasattr(result, 'portTable')

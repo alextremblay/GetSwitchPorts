@@ -4,7 +4,7 @@ TODO: Module Docs
 """
 
 # Internal module imports
-from .snmp import snmpget, snmpgetbulk, snmptable
+from .snmp import snmpget, snmpgetbulk, snmptable, snmpwalk
 from .snmp import validate_ip_address, run, PIPE, SNMPError
 
 # Standard Library imports
@@ -21,12 +21,12 @@ oids = {
     'sysName': '.1.3.6.1.2.1.1.5.0',
     'sysDescr': '.1.3.6.1.2.1.1.1.0',
     'ifNumber': '.1.3.6.1.2.1.2.1.0',
-    'ifTable': '.1.3.6.1.2.1.2.2.1',
+    'ifTable': '.1.3.6.1.2.1.2.2',
     'ifIndex': '.1.3.6.1.2.1.2.2.1.1',
     'ifDescr': '.1.3.6.1.2.1.2.2.1.2',
     'ifType': '.1.3.6.1.2.1.2.2.1.3',
     'ifPhysAddress': '.1.3.6.1.2.1.2.2.1.6',
-    'ifXTable': '.1.3.6.1.2.1.31.1.1.1',
+    'ifXTable': '.1.3.6.1.2.1.31.1.1',
     'ifName': '.1.3.6.1.2.1.31.1.1.1.1',
     'ifAlias': '.1.3.6.1.2.1.31.1.1.1.18',
     'dot1qVlanStaticName': '.1.3.6.1.2.1.17.7.1.4.3.1.1',
@@ -79,13 +79,18 @@ class SwitchInfo(object):
         # verify that the device is online and our community string is valid.
         # For this test, we'll request an OID that should exist on just about
         # every SNMP server out there: sysDescr
+        test_cmd_arg_list = ['snmpget',
+                             '-v', '2c',
+                             '-t', str(timeout),
+                             '-c', community_string,
+                             '{0}:{1}'.format(ip_address, port),
+                             oids['sysDescr']]
         connection_test = run(
-            ['snmpget', '-v', '2c', '-t', str(timeout), '-c', community_string,
-             '{0}:{1}'.format(ip_address, port), oids['sysDescr']], stderr=PIPE)
+            test_cmd_arg_list, stdout=PIPE, stderr=PIPE)
         if connection_test.returncode is not 0:
             print("Unable to communicate with {0}:{1} over SNMP \n\
-                  The error message we got was: {2}".format(
-                ip_address, port, connection_test.stderr))
+                  The error message we got was: {2}"
+                  .format(ip_address, port, connection_test.stderr))
             return None
         # else:
         # If we get to this point, then all should be well. We will resume
@@ -117,7 +122,7 @@ class SwitchInfo(object):
                 descriptions. defaults to "UNUSED" for
                 port description, "2" for vlan
         """
-
+        args = locals()
         # Start gathering switch-specific info
         self.swInfo = dict()
         self.swInfo['IP'] = ip_address
@@ -128,10 +133,27 @@ class SwitchInfo(object):
         self.swInfo['make'] = self._get_sw_make(desc[1])
         self.swInfo['model'] = self._get_sw_model(desc[1])
 
-        raw_if_table = snmptable(community_string, ip_address,
-                                 'IF-MIB::ifTable', port, timeout)
+        self.portTable =
 
-        if_index_list = self._get_interface_list()
+        raw_if_table = snmptable(community_string, ip_address,
+                                 oids['ifTable'], port, timeout,
+                                 sortkey='ifIndex')
+
+        if_map = {item['ifIndex']: item for item in raw_if_table}
+
+        raw_vlan_list = snmpwalk(community_string, ip_address,
+                                 oids[self.swInfo['make']]['nativeVlan'], port,
+                                 timeout)
+        vlan_map = {index.split('.')[-1]: vlan for (index,vlan) in
+                    raw_vlan_list}
+
+        if_index_list = self._get_interface_list(raw_if_table)
+
+        raw_ifx_table = snmptable(community_string, ip_address,
+                                  oids['ifTable'], port, timeout,
+                                  sortkey='index')
+
+        ifx_map = {item['ifIndex']: item for item in raw_ifx_table}
 
         # Start gathering port-specific info for each port
         if verbosity > 0:
@@ -145,12 +167,12 @@ class SwitchInfo(object):
         for count, ifIndex in enumerate(if_index_list):
             if verbosity > 0: progress.update(count)
             interface = dict()
-            interface['vlan'] = self.get_native_vlan(ifIndex)
-            interface['name'] = self.get_IF_name(ifIndex)
-            interface['desc'] = self.get_IF_description(ifIndex)
+            interface['vlan'] = self.get_native_vlan(ifIndex, vlan_map)
+            interface['name'] = self.get_interface_name(ifIndex, ifx_map)
+            interface['desc'] = self.get_interface_description(ifIndex, ifx_map)
 
             # Only add an interface to the list if it's an ethernet port
-            if self.get_IF_type(ifIndex) == 'ethernet':
+            if self.get_interface_type(ifIndex, if_map) == 'ethernet':
                 self.portTable.append(interface)
         if verbosity > 0: progress.finish()
 
@@ -239,39 +261,38 @@ class SwitchInfo(object):
         else:
             return 'Unknown model'
 
-    def _get_interface_list(self):
-        snmp_obj_list = self.session.walk(oids['ifIndex'])
-        index_list = []
-        for snmp_obj in snmp_obj_list:
-            index_list.append(int(snmp_obj.value))
+    def _get_port_table(self, args: Dict[str, Union[str, int]],) -> Dict:
+        ip_address = args['ip_address']
+        community_string = args['community_string']
+
+
+    def _get_interface_list(self, if_table):
+        index_list = [item['ifIndex'] for item in if_table]
         return index_list
 
-    def get_native_vlan(self, index):
+    def get_native_vlan(self, index, vlan_list):
         make = self.swInfo['make']
         if make == 'Cisco' or make == 'Nortel':
-            vlan_snmp_obj = self.session.get((oids[make]['nativeVlan'], index))
-            return vlan_snmp_obj.value
+            return vlan_list.get(index, None)
         else:
             #print('Native vlan detection not supported for this switch')
             return None
 
-    def get_IF_name(self, index):
-        name_snmp_obj = self.session.get((oids['ifName'], index))
-        return name_snmp_obj.value
+    def get_interface_name(self, index, interface_map):
+        return interface_map[index].get('ifName', None)
 
-    def get_IF_type(self, index):
-        type_snmp_obj = self.session.get((oids['ifType'], index))
-        if type_snmp_obj.value == '6':
+    def get_interface_type(self, index, interface_map):
+        iftype = interface_map[index].get('ifType', None)
+        if iftype == 'ethernetCsmacd':
             # ifType is reported as a number corresponding to an IANAifType.
             # 6 = ethernetCsmacd, which is the IANAifType for a standard
             # ethernet port
             return 'ethernet'
         else:
-            return 'unknown ifType: ' + type_snmp_obj.value
+            return 'unknown ifType: ' + iftype
 
-    def get_IF_description(self, index):
-        alias_snmp_obj = self.session.get((oids['ifAlias'], index))
-        return alias_snmp_obj.value
+    def get_interface_description(self, index, interface_table):
+        return interface_table[index].get('ifAlias', None)
 
 
 # Order of operations:

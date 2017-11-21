@@ -29,6 +29,7 @@ def test_snmp_invalid_address():
         assert 'does not appear to be a valid' in str(excinfo.value)
 
 
+@pytest.mark.slow
 def test_snmp_timeout():
     """
     all snmp commands should implement the check_timeout function
